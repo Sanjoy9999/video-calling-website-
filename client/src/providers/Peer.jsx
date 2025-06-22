@@ -1,4 +1,4 @@
-import React, { useMemo, useEffect, useState, useCallback } from "react";
+import React, { useMemo, useEffect, useState, useCallback, useRef } from "react";
 
 const PeerContext = React.createContext(null);
 
@@ -6,6 +6,7 @@ export const usePeer = () => React.useContext(PeerContext);
 
 export const PeerProvider = (props) => {
   const [remoteStream, setRemoteStream] = useState(null);
+  const addedTracksRef = useRef(new Set()); // Track added tracks using a ref
 
   const peer = useMemo(
     () =>
@@ -42,7 +43,12 @@ export const PeerProvider = (props) => {
   const sendStream = async (stream) => {
     const tracks = stream.getTracks();
     for (const track of tracks) {
-      peer.addTrack(track, stream);
+      // Check if this track (or one with the same ID) has already been added
+      const trackId = track.id;
+      if (!addedTracksRef.current.has(trackId)) {
+        peer.addTrack(track, stream);
+        addedTracksRef.current.add(trackId);
+      }
     }
   };
 
@@ -51,15 +57,13 @@ export const PeerProvider = (props) => {
     setRemoteStream(streams[0]);
   }, []);
 
-
-
   useEffect(() => {
     peer.addEventListener("track", handleTrackEvent);
    
     return () => {
-    peer.removeEventListener("track", handleTrackEvent);
-   
-
+      peer.removeEventListener("track", handleTrackEvent);
+      // Clear tracked tracks on unmount
+      addedTracksRef.current.clear();
     };
   }, [handleTrackEvent, peer]);
 
